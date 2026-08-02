@@ -1,0 +1,116 @@
+﻿import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.manifold import MDS
+
+# Step 1: Load SNP distance matrix
+
+DIST_FILE = "pairwise_snp_distances.tsv"
+META_FILE = "metadata.csv"
+
+# Read distance matrix
+dist_raw = pd.read_csv(
+    DIST_FILE,
+    sep="\t",
+    header=None
+)
+
+# Extract sample IDs
+sample_ids = dist_raw.iloc[:, 0].values
+
+# Extract numeric matrix
+dist_mat = dist_raw.iloc[:, 1:].values
+
+# Convert to DataFrame
+dist_df = pd.DataFrame(
+    dist_mat,
+    index=sample_ids,
+    columns=sample_ids
+)
+
+print(f"Loaded {dist_df.shape[0]} samples")
+
+# Step 2: Classical MDS
+
+mds = MDS(
+    n_components=2,
+    dissimilarity="precomputed",
+    random_state=42,
+    normalized_stress="auto"
+)
+
+mds_result = mds.fit_transform(dist_df)
+
+# Create dataframe
+mds_df = pd.DataFrame(
+    mds_result,
+    columns=["MDS1", "MDS2"]
+)
+
+mds_df["SampleID"] = sample_ids
+
+# Step 3: Add metadata
+
+meta = pd.read_csv(META_FILE)
+
+mds_df = mds_df.merge(
+    meta,
+    on="SampleID",
+    how="left"
+)
+
+print(mds_df.head())
+
+# Step 4: Plot MDS
+
+plt.figure(figsize=(8,6))
+
+colors = {
+    "China": "red",
+    "India": "blue",
+    "Tanzania": "green"
+}
+
+for location, group in mds_df.groupby("Location"):
+
+    plt.scatter(
+        group["MDS1"],
+        group["MDS2"],
+        label=location,
+        s=80,
+        alpha=1
+    )
+
+
+    # Add sample labels 
+
+    for _, row in group.iterrows():
+        plt.text(
+            row["MDS1"],
+            row["MDS2"],
+            row["SampleID"],
+            fontsize=7
+        )
+
+plt.xlabel("MDS Axis 1")
+plt.ylabel("MDS Axis 2")
+
+plt.title(
+    "Multidimensional Scaling of Pairwise SNP Distances"
+)
+
+plt.legend(
+    title="Location"
+)
+
+plt.tight_layout()
+
+# Step 5: Save figure
+
+plt.savefig(
+    "MDS_plot.pdf",
+    format="pdf",
+    bbox_inches="tight"
+)
+
+plt.show()
